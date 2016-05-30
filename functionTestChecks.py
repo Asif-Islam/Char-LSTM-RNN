@@ -4,6 +4,7 @@
 
 import numpy as np 
 from layers import *
+from oneHot import *
 #TO DO: Add a call to every testable function; create test cases and manually calculate the expected value
 #Then check if our function does as we expect
 
@@ -20,6 +21,7 @@ def forward_pass_test():
 	X = np.linspace(-3,7, num=N*D).reshape((N,D))
 	W = np.linspace(-6,3, num=D*H).reshape((D,H))
 	b = np.linspace(-2,-1, num=H).reshape((H,))
+
 	expected_out = np.array([
 							[16, 3.2857],
 							[-1.1429, 3.2857],
@@ -91,6 +93,20 @@ def convert_char_to_vec_test():
 	pass
 
 def convert_char_to_idx_test():
+	char_list = ['a','b','c','d','e','f','g','h',']','^']
+	char1 = '^'
+	char2 = 'c'
+	char3 = 'g'
+	char4 = 'm'
+
+	print (convert_char_to_idx(char_list,char1) == 9)
+	print (convert_char_to_idx(char_list,char2) == 2)
+	print (convert_char_to_idx(char_list,char3) == 6)
+	try:
+		print (convert_char_to_idx(char_list,char4))
+	except ValueError:
+		print True
+
 	pass
 
 def convert_vec_to_char_test():
@@ -124,7 +140,13 @@ def sample_test():
 def train_test():
 	pass
 
+print '###############'
+print '# START TESTS #'
+print '###############'
 
-print 'START'
+#Layers.py tests
 forward_pass_test()
 backward_pass_test()
+
+#Onehot.py tests
+convert_char_to_idx_test()
