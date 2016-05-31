@@ -47,7 +47,7 @@ class Solver(object):
 		for i in xrange(itr):
 			h, c, _ = lstm_step_forward(input_vec, h, c, Wxh, Whh, b1)
 			scores, _ = forward_pass(h, Why, b2)
-			probs = softmax(out)
+			probs = softmax(out, 1.0)
 			index = np.random.choice(range(char_list_size),p=probs.ravel())
 			input_vec = np.zeros_like(input_vec)
 			input_vec[index] = 1

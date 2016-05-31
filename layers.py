@@ -23,8 +23,7 @@ def forward_pass(X, W, b):
 	"""
 
 	cache = {}
-
-	out = X.reshape(X.shape[0],-1).dot(W) + b
+	out   = X.reshape(X.shape[0],-1).dot(W) + b
 
 	cache['X'] = X
 	cache['W'] = W
@@ -75,11 +74,13 @@ def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b):
 		cache - Dictionary of values required for backward pass
 	"""
 	#Pre-processing
-	h_next, c_next = None
-	cache = {}
-	N, D = X.shape
-	_, H = h_prev.shape
-	X = X.reshape(X.shape[0],-1)
+	h_next = None
+	c_next = None
+	cache  = {}
+	N, D   = X.shape
+	_, H   = h_prev.shape
+	X      = X.reshape(X.shape[0],-1)
+
 	#Tabulate the activation
 	a = np.dot(X, Wxh) + np.dot(h_prev, Whh) + b
 
@@ -194,8 +195,40 @@ def lstm_seq_forward(X, h0, Wxh, Whh, b):
 	return h, cache
 
 
-def lstm_seq_backward():
+def lstm_seq_backward(dh, cache):
+	"""
+	Inputs:
+		dh - Upstream gradients of hidden states; dimensions (N, T, H)
+		cache - Values saved during forward pass
+	Output:
+		dX - Gradient of input data; dimensions (N, T, D)
+		dh0 - Gradient of first hidden state; dimensions (N, H)
+		dWxh - Gradient of input-hidden weight matrix; dimensions (D, 4H)
+		dWhh - Gradient of hidden-hidden weight matrix; dimensions (H, 4H)
+		db - Gradient of biases; dimensions (4H,)
 	pass
+	"""
+
+	#Unpack values from our cache
+	X, h0, Wxh, Whh = cache['X'], cache['h0'], cache['Wxh'], cache['Whh']
+	hs, cs, forward_caches = cache['hs'], cache['cs'], cache['forward_caches']
+
+	#Pre-processing
+	dX   = np.zeros_like(X)
+	dh0  = np.zeros_like(h0)
+	dc   = np.zeros_like(dc)
+	dWxh = np.zeros_like(Wxh)
+	dWhh = np.zeros_like(Whh)
+	db   = np.zeros_like(b)
+
+	#Main Loop
+	for i in reversed(xrange(T)):
+		dx[:,i,:], dh0, dc, dWxh_b, dWhh_b, db_b = lstm_step_backward(dh[:,i,:] + dh0, forward_caches[i])
+		dWxh += dWxh_b
+		dWhh += dWhh_b
+		db   += db_b
+
+	return dX, dh0, dWxh, dWhh, db
 
 
 def sigmoid(X):
@@ -204,10 +237,10 @@ def sigmoid(X):
 	Numerically Stable Sigmoid Function:
 
 	Inputs:
-		X - input matrix to be put through sigmoid function;
+		X - Input matrix to be put through sigmoid function;
 
 	Outputs:
-		out - input matrix after evaluation through simgoid function;
+		out - Input matrix after evaluation through simgoid function;
 	"""
 
   	p_mask = (X >= 0)
@@ -221,9 +254,58 @@ def sigmoid(X):
   	return top / (1 + z)
 
 
-def softmax():
-	pass
+def softmax(X, temp):
+	"""
+	Numerically Stable Softmax:
 
-def lstm_softmax_loss():
-	pass
+	Inputs:
+		X - Input vector after an affine forward pass for scores; dimensions (N, D)
+		temp - Scaling temperature applied to calculated probabilities
+
+	Outputs:
+		probs - Output probabilities for each letter; dimensions (N, D)
+	"""
+	
+	X -= np.max(X)
+	X /= temp
+	X_exp = np.exp(X)
+	score_sum = np.sum(X_exp, axis=1, keepdims=True)
+	probs = X_exp / score_sum
+	return probs
+
+
+
+def lstm_softmax_loss(X, y, temp, reg):
+	"""
+	Inputs:
+		X - Input scores through forward passes; dimensions (N, T, V)
+		y - Ground truth labels for predicted next letter Each element is 
+		    between 0 (inclusive) to V (exlcusive); dimensions (N, T)
+		temp - Scaling temperature applied to calculated probabilities
+		reg - Regularization factor (????)
+
+	Outputs:
+		loss - Tabulated loss of the forward pass; Scalar
+		ds - Gradient of loss with respect to input scores 
+
+	Outputs:
+
+	"""
+	#Pre-processing shapes
+	N, T, V = X.shape
+	flat_X = x.reshape(N * T, V)
+	flat_y = y.reshape(N * T)
+	
+	#Calculating probability scores and computing loss
+	probs = softmax(flat_X, temp)
+	log_probs = np.log(probs[np.arange(N*T), flat_y])
+	loss = -np.sum(log_probs) / N
+
+	#Determing grad Loss wrt input scores
+	flat_ds = probs.copy()
+	flat_ds[np.arange(N*T), y] -= 1
+	flat_ds /= N
+	ds = flat_ds.reshape(N, T, V)
+
+	return loss, ds
 
