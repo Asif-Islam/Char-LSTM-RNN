@@ -58,6 +58,49 @@ def backward_pass(dout, cache):
 
 	return dX, dW, db
 
+def temporal_forward_pass(X, W, b):
+	"""
+	Inputs:
+			X - Input data; dimensions (N, T, D)
+			W - Weight matrix; dimensions (D, M)
+			b - Biases; dimension (M,)
+
+	Outputs:
+			out - Output; dimensions (N, T, M)
+			cache - Stored values required for backward pass
+	"""
+
+	N, T, D = X.shape
+	M = b.shape[0]
+	out = X.reshape(N * T, D).dot(W)
+	out = out.reshape(N, T, M) + b
+	cache = X, W, b, out
+
+	return out, cache
+
+def temporal_backward_pass(dout, cache):
+	"""
+	Inputs:
+			dout -Upstream gradient: dimensions (N, T, M)
+			cache - Stored values from forward pass
+
+	Outputs:
+			dX - gradient with respect to input X; dimensions (N, T, D)
+			dW - gradient with respect to weight matrix W; dimensions (D, M)
+			b - gradient with respect to bias b; dimensions (M,)
+	"""
+
+	X, W, b, out = cache
+	N, T, D = X.shape
+	M = b.shape[0]
+
+	dX = dout.reshape(N * T, M).dot(w.T).reshape(N, T, D)
+	dW = dout.reshape(N * T, M).T.dot(X.reshape(N * T, D)).T
+	db = np.sum(dout, axis =(0,1))
+
+	return dX, dW, db
+
+
 
 def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b):
 	"""
