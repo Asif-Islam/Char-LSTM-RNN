@@ -318,14 +318,14 @@ def softmax(X, temp):
 
 
 
-def lstm_softmax_loss(X, y, temp, reg):
+def lstm_softmax_loss(X, y, temp=1.0):
 	"""
 	Inputs:
 		X - Input scores through forward passes; dimensions (N, T, V)
 		y - Ground truth labels for predicted next letter Each element is 
 		    between 0 (inclusive) to V (exlcusive); dimensions (N, T)
 		temp - Scaling temperature applied to calculated probabilities
-		reg - Regularization factor (????)
+
 
 	Outputs:
 		loss - Tabulated loss of the forward pass; Scalar

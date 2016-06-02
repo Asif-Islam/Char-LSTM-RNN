@@ -34,18 +34,26 @@ class LSTM_Network(object):
 			self.params[k] = v.astype(self.dtype)
 
 
-	def loss(self, chars, h0 = None):	#NOTE, I HAVE TO CALL THIS FUNCTION BY SENDING IN THE COMPLETE MATRIX OF CHAR-VECS
+	def loss(self, chars, char_list, h0, temp=1.0):
 		"""
 		Inputs:
-			chars - collection of characters from training data; dimensions (N, T + 1, D)
+			chars - collection of characters from training data;
 					There are T + 1 characters, where T is the number of timesteps we're
 					alloting. This is because we will use the 1st to Tth for input and
 					2nd to T+1th letters as output
-			h0    - An initial hidden state
+			h0    - An initial hidden state; dimensions (N, H)
+		Outputs:
+			loss - The scalar loss value of the neural net's classification
+			grads - Dictionary of gradients of Wxh, Whh, b1, Why and b2
 		"""
-		#Prepare our outputs
+		#Preprocessing
+		N, H = h0.shape
+		T, D = len(chars) - 1, len(char_list)
+
 		loss = 0.0
 		grads = {}
+		char_vecs = np.zeros((N, T, D))
+		idx_matrix = np.zeros((N, T))
 
 		#Load values from our dictionary for easy use
 		Wxh = self.params['Wxh']
@@ -54,24 +62,23 @@ class LSTM_Network(object):
 		Why = self.params['Why']
 		b2  = self.params['b2']
 
-		#Initialize initial hidden state if it does not exist
-		N, _, _ = chars.shape
-		if h0 is None:
-			h0 = np.random.randn(N, self.hidden_dim)
-
 		#Split our chars into input and output of equal size now
-		input_chars = [:, :-1, :]	#Dimensions (N, T, D)
-		output_chars = [:, 1:, :] 	#Dimensions (N, T, D)
+		input_chars = [:-1]
+		output_chars = [1:]
 
+		for n in range(N):
+			char_vecs[n,:,:] = convert_chars_to_vec(char_list, input_chars)
+			idx_matrix[n,:]  = np.asarray(convert_chars_to_idx(char_list, output_chars)).T
 
-
-		hidden_states, forward_caches = lstm_seq_forward(input_chars, h0, Wxh, Whh, b1)		#Dimensions (N, T, H)
+		#Forward pass through dropout layer of Wxh, Whh, b1
+		hidden_states, forward_cache = lstm_seq_forward(input_chars, h0, Wxh, Whh, b1)		#Dimensions (N, T, H)
 		scores, scores_cache = temporal_forward_pass(hidden_states, Why, b2)				#Dimensions (N, T, D)
-		#loss, dscores = lstm_softmax_loss(scores, ....)			#Reconsider lstm_softmax_los
-		
+		loss, dout = lstm_softmax_loss(scores, idx_matrix, temp)
+		dscores, grads['Why'], grads['b2'] = temporal_backward_pass(dout, scores_cache)
+		dhidden_states, dh_init, grads['Wxh'], grads['Whh'], grads['b1'] = lstm_seq_backward(dscores, forward_cache)
+		#Backprop through a dropout layer on Wxh, Whh, b1
 
-		
-		pass
+		return loss, grads
 
 	
 	def sample(h, c, input_vec, itr, cache):
