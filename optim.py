@@ -20,12 +20,13 @@ def sgd(W, dW, config=None):
 	if config is None:
 		config = {}
 
-	config.setdefault('earning_rate', 1e-1)
+	config.setdefault('learning_rate', 1e-1)
 
 	W -= config['learning_rate'] * dW
 
 	return W, config
 
+#Code optimized and cleaned with the help of CS231n Notes
 def adam_update(W, dW, config=None):
 
 	"""
@@ -50,7 +51,7 @@ def adam_update(W, dW, config=None):
   		config.setdefault('learning_rate', 1e-1)
 		config.setdefault('beta1', 0.9)
 		config.setdefault('beta2', 0.999)
-		config.setdefault('epsilon', 1e-8)
+		config.setdefault('epsilon', 1e-7)
 		config.setdefault('m', np.zeros_like(W))
 		config.setdefault('v', np.zeros_like(W))
 		config.setdefault('t', 0)

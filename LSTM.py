@@ -7,11 +7,12 @@ from layers import *
 
 class LSTM_Network(object):
 
-	def __init__(self, char_dim, hidden_dim, dtype):
+	def __init__(self, char_dim, hidden_dim, seq_length, dtype):
 		"""
 		Inputs:
 			char_dim   - Number of characters involved for training
 			hidden_dim - Number of hidden neurons
+			seq_length - Size of batch used for forward/backward prop
 			dtype      - numpy datatype to use
 		"""
 
@@ -45,6 +46,7 @@ class LSTM_Network(object):
 		Outputs:
 			loss - The scalar loss value of the neural net's classification
 			grads - Dictionary of gradients of Wxh, Whh, b1, Why and b2
+			hprev - The last hidden state, acting as the "initial state" for the next batch
 		"""
 		#Preprocessing
 		N, H = h0.shape
@@ -78,7 +80,9 @@ class LSTM_Network(object):
 		dhidden_states, dh_init, grads['Wxh'], grads['Whh'], grads['b1'] = lstm_seq_backward(dscores, forward_cache)
 		#Backprop through a dropout layer on Wxh, Whh, b1
 
-		return loss, grads
+		hprev = hidden_state[:,-1,:].reshape(N, H)
+
+		return loss, grads, hprev
 
 	
 	def sample(h, c, input_vec, itr, cache):
