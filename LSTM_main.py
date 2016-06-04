@@ -26,5 +26,8 @@ dtype = np.float32
 LSTM = LSTM_Network(char_dim, hidden_dim, seq_length, dtype)
 solver = Solver(LSTM, train_data, {})
 
+for k, v in LSTM.params.iteritems():
+	print k, v.shape
+solver.train(char_list, 'train')
 
 

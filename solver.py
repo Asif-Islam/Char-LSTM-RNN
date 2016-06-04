@@ -5,6 +5,7 @@
 import numpy as np
 from layers import *
 from optim import *
+import time
 
 class Solver(object):
 
@@ -50,11 +51,11 @@ class Solver(object):
 			temp - The softmax temperature scale, default to 1.0
 
 		"""
-		loss, grads, hprev = self.model.loss(chars, char_list, model.current_hidden_state, temp)
-		model.current_hidden_state = hprev
+		loss, grads, hprev = self.model.loss(chars, char_list, self.model.current_hidden_state, temp)
+		self.model.current_hidden_state = hprev
 		self.past_losses.append(loss)
 
-		for param, weights in self.models.best_params.iteritems():
+		for param, weights in self.model.params.iteritems():
 			dweights = grads[param]
 			config = self.optim_configs[param]	#TO DO: Create copies for optim config for each param
 			weights_updated, next_config = adam_update(weights, dweights, config)
@@ -83,7 +84,7 @@ class Solver(object):
 
 		seq_length = self.model.seq_length
 		train_length = len(data)
-		print 'Starting Train! the data length is ' + len(data)
+		print 'Starting Train! the data length is ' + str(len(data))
 
 
 
@@ -91,17 +92,18 @@ class Solver(object):
 		self.model.current_hidden_state = np.zeros_like(self.model.current_hidden_state)
 
 		while True:
-			print 'Iteration Number: ' + n
+			print 'Iteration Number: ' + str(n)
 			if p + seq_length + 1 >= train_length:
 				final_loop = True
 			
 			if (final_loop == False):
 				input_train = data[p:p+seq_length]
 				output_train = data[p+1:p+seq_length+1]
-				input_train.append(output_train[-1])
+				input_train += output_train[-1]
 			else:
 				input_train = data[p:-1]
-				input_train.append(data[-1])
+				input_train += data[-1]
+				#input_train.append(data[-1])
 
 			
 			self.step(input_train, char_list)
@@ -109,22 +111,31 @@ class Solver(object):
 			n += 1
 
 			if (n % 100 == 0):
-				h, c = np.zeros((1,self.model.hidden_dim)), np.zeros((1,self.model.hidden_dim))
+				h= np.zeros((1,self.model.hidden_dim))
+				c = np.zeros_like(h)
 				input_vec = np.zeros((1, len(char_list)))
 				input_vec[0,np.random.choice(range(len(char_list)))] = 1
-				sample_indices = self.model.sample(h, c, input_vec, 100, self.model.params)
+				sample_indices = self.model.sample(h, c, input_vec, 300, self.model.params)
 
-				for i in sample_indices:
-					print char_list[i]
+				chars = [char_list[i] for i in sample_indices]
+				output =  ''.join(chars)
+				text_file = open('Output-iter-' + str(n) + '.txt','w')
+				text_file.write(output)
+				text_file.close()
+
+				time.sleep(10)
 
 			if (final_loop == True):
 				h, c = np.zeros((1,self.model.hidden_dim)), np.zeros((1,self.model.hidden_dim))
 				input_vec = np.zeros((1, len(char_list)))
 				input_vec[0,np.random.choice(range(len(char_list)))] = 1
-				sample_indices = self.model.sample(h, c, input_vec, 100, self.model.params)
+				sample_indices = self.model.sample(h, c, input_vec, 300, self.model.params)
 
-				for i in sample_indices:
-					print char_list[i]
+				chars = [char_list[i] for i in sample_indices]
+				print ''.join(chars)
+				for k, v in self.model.params.iteritems():
+					np.savetxt(k + '.csv', v, delimiter=',')
+				time.sleep(10)
 				break
 
 

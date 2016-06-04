@@ -4,6 +4,7 @@
 
 import numpy as np 
 from layers import *
+from oneHot import *
 
 class LSTM_Network(object):
 
@@ -20,14 +21,14 @@ class LSTM_Network(object):
 		self.char_dim = char_dim
 		self.hidden_dim = hidden_dim
 		self.seq_length = seq_length
-		self.current_hidden_state = np.zeros_like((1,hidden_dim));
+		self.current_hidden_state = np.zeros((1,hidden_dim));
 		self.params = {}
 
 		self.params['Wxh'] = np.random.randn(char_dim, 4 * hidden_dim)
 		self.params['Wxh'] /= np.sqrt(char_dim)
 		self.params['Whh'] = np.random.randn(hidden_dim, 4 * hidden_dim)
 		self.params['Whh'] /= np.sqrt(hidden_dim)
-		self.params['b1']  = np.zeros((hidden_dim))
+		self.params['b1']  = np.zeros((4*hidden_dim))
 		self.params['Why'] = np.random.randn(hidden_dim, char_dim)
 		self.params['Why'] /= np.sqrt(hidden_dim)
 		self.params['b2']  = np.zeros(char_dim)
@@ -75,19 +76,19 @@ class LSTM_Network(object):
 			idx_matrix[n,:]  = np.asarray(convert_chars_to_idx(char_list, output_chars)).T
 
 		#Forward pass through dropout layer of Wxh, Whh, b1
-		hidden_states, forward_cache = lstm_seq_forward(input_chars, h0, Wxh, Whh, b1)		#Dimensions (N, T, H)
+		hidden_states, forward_cache = lstm_seq_forward(char_vecs, h0, Wxh, Whh, b1)		#Dimensions (N, T, H)
 		scores, scores_cache = temporal_forward_pass(hidden_states, Why, b2)				#Dimensions (N, T, D)
 		loss, dout = lstm_softmax_loss(scores, idx_matrix, temp)
 		dscores, grads['Why'], grads['b2'] = temporal_backward_pass(dout, scores_cache)
 		dhidden_states, dh_init, grads['Wxh'], grads['Whh'], grads['b1'] = lstm_seq_backward(dscores, forward_cache)
 		#Backprop through a dropout layer on Wxh, Whh, b1
 
-		hprev = hidden_state[:,-1,:].reshape(N, H)
+		hprev = hidden_states[:,-1,:].reshape(N, H)
 
 		return loss, grads, hprev
 
 	
-	def sample(h, c, input_vec, itr, cache):
+	def sample(self,h, c, input_vec, itr, cache):
 		"""
 		Inputs:
 			h         - Contains the current hidden state; dimension (N, H)
@@ -100,7 +101,7 @@ class LSTM_Network(object):
 		"""
 
 		#Pre-processing
-		char_list_size = input_vec.shape[0]
+		char_list_size = input_vec.shape[1]
 		Wxh, Whh, b1 = cache['Wxh'], cache['Whh'], cache['b1']
 		Why, b2 = cache['Why'], cache['b2']
 		char_indices = []
@@ -110,10 +111,10 @@ class LSTM_Network(object):
 		for i in xrange(itr):
 			h, c, _ = lstm_step_forward(input_vec, h, c, Wxh, Whh, b1)
 			scores, _ = forward_pass(h, Why, b2)
-			probs = softmax(out, 1.0)
+			probs = softmax(scores, 1.0)
 			index = np.random.choice(range(char_list_size),p=probs.ravel())
 			input_vec = np.zeros_like(input_vec)
-			input_vec[index] = 1
+			input_vec[:,index] = 1
 			char_indices.append(index)
 
 		return char_indices

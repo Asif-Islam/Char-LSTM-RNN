@@ -94,7 +94,7 @@ def temporal_backward_pass(dout, cache):
 	N, T, D = X.shape
 	M = b.shape[0]
 
-	dX = dout.reshape(N * T, M).dot(w.T).reshape(N, T, D)
+	dX = dout.reshape(N * T, M).dot(W.T).reshape(N, T, D)
 	dW = dout.reshape(N * T, M).T.dot(X.reshape(N * T, D)).T
 	db = np.sum(dout, axis =(0,1))
 
@@ -215,7 +215,7 @@ def lstm_seq_forward(X, h0, Wxh, Whh, b):
 	"""
 
 	#Pre-processing
-	h, cache = None, None
+	h, cache = None, {}
 	N, T, D = X.shape
 	_, H = h0.shape
 	h = np.zeros((N, T, H))
@@ -231,7 +231,7 @@ def lstm_seq_forward(X, h0, Wxh, Whh, b):
 		h[:,i,:] = hs[i]
 
 	#Store our values into the cache
-	cache['X'], cache['h0'], cache['Wxh'], cache['Whh'] = X, h0, Wxh, Whh
+	cache['X'], cache['h0'], cache['Wxh'], cache['Whh'], cache['b'] = X, h0, Wxh, Whh, b
 	cache['hs'], cache['cs'], cache['forward_caches'] = hs, cs, forward_caches
 
 	return h, cache
@@ -252,20 +252,21 @@ def lstm_seq_backward(dh, cache):
 	"""
 
 	#Unpack values from our cache
-	X, h0, Wxh, Whh = cache['X'], cache['h0'], cache['Wxh'], cache['Whh']
+	X, h0, Wxh, Whh, b = cache['X'], cache['h0'], cache['Wxh'], cache['Whh'], cache['b']
 	hs, cs, forward_caches = cache['hs'], cache['cs'], cache['forward_caches']
 
 	#Pre-processing
 	dX   = np.zeros_like(X)
 	dh0  = np.zeros_like(h0)
-	dc   = np.zeros_like(dc)
+	dc   = np.zeros_like(h0)
 	dWxh = np.zeros_like(Wxh)
 	dWhh = np.zeros_like(Whh)
 	db   = np.zeros_like(b)
+	N, T, D = X.shape
 
 	#Main Loop
 	for i in reversed(xrange(T)):
-		dx[:,i,:], dh0, dc, dWxh_b, dWhh_b, db_b = lstm_step_backward(dh[:,i,:] + dh0, forward_caches[i])
+		dX[:,i,:], dh0, dc, dWxh_b, dWhh_b, db_b = lstm_step_backward(dh[:,i,:] + dh0, dc, forward_caches[i])
 		dWxh += dWxh_b
 		dWhh += dWhh_b
 		db   += db_b
@@ -335,8 +336,9 @@ def lstm_softmax_loss(X, y, temp=1.0):
 	"""
 	#Pre-processing shapes
 	N, T, V = X.shape
-	flat_X = x.reshape(N * T, V)
-	flat_y = y.reshape(N * T)
+	flat_X = X.reshape(N * T, V)
+	flat_y = [int(idx) for idx in y.reshape(N * T)]
+	
 	
 	#Calculating probability scores and computing loss
 	probs = softmax(flat_X, temp)
@@ -345,7 +347,7 @@ def lstm_softmax_loss(X, y, temp=1.0):
 
 	#Determing grad Loss wrt input scores
 	flat_ds = probs.copy()
-	flat_ds[np.arange(N*T), y] -= 1
+	flat_ds[np.arange(N*T), flat_y] -= 1
 	flat_ds /= N
 	ds = flat_ds.reshape(N, T, V)
 
