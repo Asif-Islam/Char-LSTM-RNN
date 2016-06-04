@@ -122,7 +122,6 @@ def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b):
 	cache  = {}
 	N, D   = X.shape
 	_, H   = h_prev.shape
-	X      = X.reshape(X.shape[0],-1)
 
 	#Tabulate the activation
 	a = np.dot(X, Wxh) + np.dot(h_prev, Whh) + b

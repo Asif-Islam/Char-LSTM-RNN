@@ -13,13 +13,11 @@ class Solver(object):
 	our LTSM neural net. 
 	"""
 
-	def __init__(self, model, train_data, optm_config):
+	def __init__(self, model, train_data, optim_config=None):
 
 		self.model = model
-		self.X_train = train_data['X_train']
-		self.y_train = train_data['y_train']
-		self.X_val = train_data['X_val']
-		self.y_val = train_data['y_val']
+		self.data_train = train_data['train']
+		self.data_val = train_data['val']
 		self.optim_config = optim_config
 		self.epochs = model.seq_length				#Have to think about the implications of this
 		self.print_interval = model.seq_length
@@ -39,12 +37,12 @@ class Solver(object):
 		self.past_val_acc = []
 
 		self.optim_configs = {}
-		for p in self.model.params;
-      		d = {k: v for k, v in self.optim_config.iteritems()}
-      		self.optim_configs[p] = d 
+		for p in self.model.params:
+      			d = {k: v for k, v in self.optim_config.iteritems()}
+      			self.optim_configs[p] = d 
 
 	
-	def step(self, chars, h0, temp=1.0):
+	def step(self, chars, char_list, temp=1.0):
 		"""
 		Inputs:
 			chars - The list batch of characters that we are forward and backward propagating over; dimensions
@@ -52,7 +50,8 @@ class Solver(object):
 			temp - The softmax temperature scale, default to 1.0
 
 		"""
-		loss, grads, hprev = self.model.loss(chars, self.char_list, h0, temp)
+		loss, grads, hprev = self.model.loss(chars, char_list, model.current_hidden_state, temp)
+		model.current_hidden_state = hprev
 		self.past_losses.append(loss)
 
 		for param, weights in self.models.best_params.iteritems():
@@ -62,11 +61,11 @@ class Solver(object):
 			self.model.params[param] = weights_updated
 			self.optim_configs[param] = next_config 
 
-	def check_accuracy():
+	def check_accuracy(self):
 		
 		"""
 		Inputs:
-
+			
 		Outputs:
 
 		"""
@@ -75,7 +74,58 @@ class Solver(object):
 
 
 
-	def train():
-		pass
+	def train(self, char_list, mode='train'):	#TO DO: ASSIGN MODEL.CURENT_HIDDEN_STATE
+
+		if mode == 'train':
+			data = self.data_train
+		elif mode == 'val':
+			data = self.data_val
+
+		seq_length = self.model.seq_length
+		train_length = len(data)
+		print 'Starting Train! the data length is ' + len(data)
+
+
+
+		n, p, final_loop = 0, 0, False
+		self.model.current_hidden_state = np.zeros_like(self.model.current_hidden_state)
+
+		while True:
+			print 'Iteration Number: ' + n
+			if p + seq_length + 1 >= train_length:
+				final_loop = True
+			
+			if (final_loop == False):
+				input_train = data[p:p+seq_length]
+				output_train = data[p+1:p+seq_length+1]
+				input_train.append(output_train[-1])
+			else:
+				input_train = data[p:-1]
+				input_train.append(data[-1])
+
+			
+			self.step(input_train, char_list)
+			p += seq_length
+			n += 1
+
+			if (n % 100 == 0):
+				h, c = np.zeros((1,self.model.hidden_dim)), np.zeros((1,self.model.hidden_dim))
+				input_vec = np.zeros((1, len(char_list)))
+				input_vec[0,np.random.choice(range(len(char_list)))] = 1
+				sample_indices = self.model.sample(h, c, input_vec, 100, self.model.params)
+
+				for i in sample_indices:
+					print char_list[i]
+
+			if (final_loop == True):
+				h, c = np.zeros((1,self.model.hidden_dim)), np.zeros((1,self.model.hidden_dim))
+				input_vec = np.zeros((1, len(char_list)))
+				input_vec[0,np.random.choice(range(len(char_list)))] = 1
+				sample_indices = self.model.sample(h, c, input_vec, 100, self.model.params)
+
+				for i in sample_indices:
+					print char_list[i]
+				break
+
 
 

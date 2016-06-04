@@ -19,6 +19,8 @@ class LSTM_Network(object):
 		self.dtype = dtype
 		self.char_dim = char_dim
 		self.hidden_dim = hidden_dim
+		self.seq_length = seq_length
+		self.current_hidden_state = np.zeros_like((1,hidden_dim));
 		self.params = {}
 
 		self.params['Wxh'] = np.random.randn(char_dim, 4 * hidden_dim)
@@ -35,7 +37,7 @@ class LSTM_Network(object):
 			self.params[k] = v.astype(self.dtype)
 
 
-	def loss(self, chars, char_list, h0, temp=1.0):
+	def loss(self, chars, char_list, h0, temp=1.0, ):
 		"""
 		Inputs:
 			chars - collection of characters from training data;
@@ -65,8 +67,8 @@ class LSTM_Network(object):
 		b2  = self.params['b2']
 
 		#Split our chars into input and output of equal size now
-		input_chars = [:-1]
-		output_chars = [1:]
+		input_chars = chars[:-1]
+		output_chars = chars[1:]
 
 		for n in range(N):
 			char_vecs[n,:,:] = convert_chars_to_vec(char_list, input_chars)
@@ -99,7 +101,7 @@ class LSTM_Network(object):
 
 		#Pre-processing
 		char_list_size = input_vec.shape[0]
-		Wxh, Whh, b1 = cache['Wxh'], cache['Whh'] cache['b1']
+		Wxh, Whh, b1 = cache['Wxh'], cache['Whh'], cache['b1']
 		Why, b2 = cache['Why'], cache['b2']
 		char_indices = []
 		X = np.zeros_like(input_vec)
