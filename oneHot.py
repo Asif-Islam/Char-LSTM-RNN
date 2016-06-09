@@ -21,7 +21,6 @@ def convert_chars_to_vec(char_list, chars):
 	indices = np.ravel(indices)
 	char_vec[np.arange(len(chars)), indices] = 1
 	return char_vec
-	pass
 
 def convert_chars_to_idx(char_list, chars):
 	"""

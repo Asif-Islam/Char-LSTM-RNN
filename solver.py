@@ -72,15 +72,25 @@ class Solver(object):
 		"""
 
 
+	def sample_training(self,char_list, n):
 
+		h= np.zeros((1,self.model.hidden_dim))
+		c = np.zeros_like(h)
+		input_vec = np.zeros((1, len(char_list)))
+		input_vec[0,np.random.choice(range(len(char_list)))] = 1
+		sample_indices = self.model.sample(h, c, input_vec, 500, self.model.params)
+
+		chars = [char_list[i] for i in sample_indices]
+		output =  ''.join(chars)
+		#TO DO: Run this section iff mode='train'
+		text_file = open('Output-iter-' + str(n) + '.txt','w')
+		text_file.write(output)
+		text_file.close()
 
 
 	def train(self, char_list, mode='train'):	#TO DO: ASSIGN MODEL.CURENT_HIDDEN_STATE
 
-		if mode == 'train':
-			data = self.data_train
-		elif mode == 'val':
-			data = self.data_val
+		data = self.data_train
 
 		seq_length = self.model.seq_length
 		train_length = len(data)
@@ -109,33 +119,17 @@ class Solver(object):
 			self.step(input_train, char_list)
 			p += seq_length
 			n += 1
-
-			if (n % 100 == 0):
-				h= np.zeros((1,self.model.hidden_dim))
-				c = np.zeros_like(h)
-				input_vec = np.zeros((1, len(char_list)))
-				input_vec[0,np.random.choice(range(len(char_list)))] = 1
-				sample_indices = self.model.sample(h, c, input_vec, 300, self.model.params)
-
-				chars = [char_list[i] for i in sample_indices]
-				output =  ''.join(chars)
-				text_file = open('Output-iter-' + str(n) + '.txt','w')
-				text_file.write(output)
-				text_file.close()
-
-				time.sleep(10)
-
-			if (final_loop == True):
-				h, c = np.zeros((1,self.model.hidden_dim)), np.zeros((1,self.model.hidden_dim))
-				input_vec = np.zeros((1, len(char_list)))
-				input_vec[0,np.random.choice(range(len(char_list)))] = 1
-				sample_indices = self.model.sample(h, c, input_vec, 300, self.model.params)
-
-				chars = [char_list[i] for i in sample_indices]
-				print ''.join(chars)
+			#TO DO: EXTRACT THIS SAMPLE CODE BLOCK INTO A FUNCTION
+			if (n % 1000 == 0 and mode == 'train'):
+				self.sample_training(char_list, n)
 				for k, v in self.model.params.iteritems():
 					np.savetxt(k + '.csv', v, delimiter=',')
-				time.sleep(10)
+
+			if (final_loop == True):
+				if (mode == 'train'):
+					self.sample_training(char_list, n)
+					for k, v in self.model.params.iteritems():
+						np.savetxt(k + '.csv', v, delimiter=',')
 				break
 
 

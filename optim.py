@@ -28,7 +28,7 @@ def sgd(W, dW, config=None):
 
 #Code optimized and cleaned with the help of CS231n Notes
 def adam_update(W, dW, config=None):
-
+	
 	"""
 	Inputs:
 		W - The parameter that we are updating

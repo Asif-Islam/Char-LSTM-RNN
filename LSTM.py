@@ -88,7 +88,7 @@ class LSTM_Network(object):
 		return loss, grads, hprev
 
 	
-	def sample(self,h, c, input_vec, itr, cache):
+	def sample(self,h, c, input_vec, itr, cache, mode='sample'):
 		"""
 		Inputs:
 			h         - Contains the current hidden state; dimension (N, H)
@@ -106,12 +106,13 @@ class LSTM_Network(object):
 		Why, b2 = cache['Why'], cache['b2']
 		char_indices = []
 		X = np.zeros_like(input_vec)
+		char_indices.append(np.argmax(input_vec))
 
 		#Main Loop
 		for i in xrange(itr):
 			h, c, _ = lstm_step_forward(input_vec, h, c, Wxh, Whh, b1)
 			scores, _ = forward_pass(h, Why, b2)
-			probs = softmax(scores, 1.0)
+			probs = softmax(scores, 0.9)
 			index = np.random.choice(range(char_list_size),p=probs.ravel())
 			input_vec = np.zeros_like(input_vec)
 			input_vec[:,index] = 1
