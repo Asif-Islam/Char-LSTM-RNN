@@ -17,8 +17,7 @@ class Solver(object):
 	def __init__(self, model, train_data, optim_config=None):
 
 		self.model = model
-		self.data_train = train_data['train']
-		self.data_val = train_data['val']
+		self.data_train = train_data['train']	#This will be a list of lists, per song basis
 		self.optim_config = optim_config
 		self.epochs = model.seq_length				#Have to think about the implications of this
 		self.print_interval = model.seq_length
@@ -93,44 +92,80 @@ class Solver(object):
 		data = self.data_train
 
 		seq_length = self.model.seq_length
-		train_length = len(data)
-		print 'Starting Train! the data length is ' + str(len(data))
+		num_train = data.shape[0]
+		train_length = data.shape[1]
 
-
-
-		n, p, final_loop = 0, 0, False
-		self.model.current_hidden_state = np.zeros_like(self.model.current_hidden_state)
-
-		while True:
-			print 'Iteration Number: ' + str(n)
-			if p + seq_length + 1 >= train_length:
-				final_loop = True
+		print 'Starting Train! the data length is ' + str(train_length)
+		epoch = 0
+		for i in range(0, num_train, self.model.batch_size):
 			
-			if (final_loop == False):
-				input_train = data[p:p+seq_length]
-				output_train = data[p+1:p+seq_length+1]
-				input_train += output_train[-1]
-			else:
-				input_train = data[p:-1]
-				input_train += data[-1]
-				#input_train.append(data[-1])
+			n,p, final_loop = 0, 0 , False
+			self.model.current_hidden_state = np.zeros_like(self.model.current_hidden_state)
 
+			while True:
+				print 'Batch set: ' + str(epoch)
+				print 'Iteration Number: ' + str(n)
+
+				if p + seq_length + 1 >= train_length:
+					final_loop = True
+
+				if (final_loop == False):
+					input_train = data[i:i+self.model.batch_size, p:p+seq_length+1]
+				else:
+					input_train = data[epoch*self.model.batch_size:i, p:]
+
+				self.step(input_train, char_list, mode)
+				p += seq_length
+				n += 1
+
+				if (self.model.batch_size == 1):
+					if (n % 1000 == 0):
+						self.sample_training(char_list, n)
+
+				if (final_loop == True):
+					break
+
+			epoch +=1
+			self.sample_training(char_list, n)
+			for k, v in self.model.params.iteritems():
+				np.savetxt(k + '.csv', v, delimiter=',')
+
+	"""	n, p, final_loop = 0, 0, False
+					self.model.current_hidden_state = np.zeros_like(self.model.current_hidden_state)
 			
-			self.step(input_train, char_list, mode)
-			p += seq_length
-			n += 1
-			#TO DO: EXTRACT THIS SAMPLE CODE BLOCK INTO A FUNCTION
-			if (n % 1000 == 0 and mode['pass'] == 'train'):
-				self.sample_training(char_list, n)
-				for k, v in self.model.params.iteritems():
-					np.savetxt(k + '.csv', v, delimiter=',')
-
-			if (final_loop == True):
-				if (mode['pass'] == 'train'):
-					self.sample_training(char_list, n)
-					for k, v in self.model.params.iteritems():
-						np.savetxt(k + '.csv', v, delimiter=',')
-				break
-
+			
+			
+			
+					while True:
+						print 'Iteration Number: ' + str(n)
+						if p + seq_length + 1 >= train_length:
+							final_loop = True
+						
+						if (final_loop == False):
+							input_train = data[p:p+seq_length]
+							output_train = data[p+1:p+seq_length+1]
+							input_train += output_train[-1]
+						else:
+							input_train = data[p:-1]
+							input_train += data[-1]
+							#input_train.append(data[-1])
+			
+						
+						self.step(input_train, char_list, mode)
+						p += seq_length
+						n += 1
+						#TO DO: EXTRACT THIS SAMPLE CODE BLOCK INTO A FUNCTION
+						if (n % 1000 == 0 and mode['pass'] == 'train'):
+							self.sample_training(char_list, n)
+							for k, v in self.model.params.iteritems():
+								np.savetxt(k + '.csv', v, delimiter=',')
+			
+						if (final_loop == True):
+							if (mode['pass'] == 'train'):
+								self.sample_training(char_list, n)
+								for k, v in self.model.params.iteritems():
+									np.savetxt(k + '.csv', v, delimiter=',')
+							break
+			"""
 
 

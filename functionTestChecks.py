@@ -98,14 +98,15 @@ def convert_char_to_idx_test():
 	char2 = 'c'
 	char3 = 'g'
 	char4 = 'm'
-	chars = ['a','b','c']
-	print chars[1:]
-	x = np.asarray(convert_chars_to_idx(char_list,['^','f','e']))
-	print x.T
-	print x.shape
-	print x.T.shape
-	print ()
-	print (convert_chars_to_vec(char_list,['^','f','e']))
+	chars = []
+	chars.append(['a','b','c'])
+	chars.append(['^','f','e'])
+	chars = np.asarray(chars)
+	x = convert_chars_to_idx(char_list,chars)
+	print x
+	y = (convert_chars_to_vec(char_list,chars))
+	print y
+	print y.shape
 
 	pass
 

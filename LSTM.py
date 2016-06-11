@@ -8,7 +8,7 @@ from oneHot import *
 
 class LSTM_Network(object):
 
-	def __init__(self, char_dim, hidden_dim, seq_length, dtype):
+	def __init__(self, char_dim, hidden_dim, seq_length, batch_size, dtype):
 		"""
 		Inputs:
 			char_dim   - Number of characters involved for training
@@ -21,7 +21,8 @@ class LSTM_Network(object):
 		self.char_dim = char_dim
 		self.hidden_dim = hidden_dim
 		self.seq_length = seq_length
-		self.current_hidden_state = np.zeros((1,hidden_dim));
+		self.batch_size = batch_size
+		self.current_hidden_state = np.zeros((batch_size,hidden_dim));
 		self.params = {}
 
 		self.params['Wxh'] = np.random.randn(char_dim, 4 * hidden_dim)
@@ -41,10 +42,8 @@ class LSTM_Network(object):
 	def loss(self, chars, char_list, h0,  mode, temp=1.0):
 		"""
 		Inputs:
-			chars - collection of characters from training data;
-					There are T + 1 characters, where T is the number of timesteps we're
-					alloting. This is because we will use the 1st to Tth for input and
-					2nd to T+1th letters as output
+			chars - Numpy Array of characters to train over; dimensions (N, T)
+					where N is the batch size and S is the sequence length
 			h0    - An initial hidden state; dimensions (N, H)
 			mode -  Dictionary for Zoneout mode 
 		Outputs:
@@ -54,7 +53,7 @@ class LSTM_Network(object):
 		"""
 		#Preprocessing
 		N, H = h0.shape
-		T, D = len(chars) - 1, len(char_list)
+		T, D = chars.shape[1] - 1, len(char_list)
 
 		loss = 0.0
 		grads = {}
@@ -69,12 +68,11 @@ class LSTM_Network(object):
 		b2  = self.params['b2']
 
 		#Split our chars into input and output of equal size now
-		input_chars = chars[:-1]
-		output_chars = chars[1:]
+		input_chars = chars[:,:-1]
+		output_chars = chars[:,1:]
 
-		for n in range(N):
-			char_vecs[n,:,:] = convert_chars_to_vec(char_list, input_chars)
-			idx_matrix[n,:]  = np.asarray(convert_chars_to_idx(char_list, output_chars)).T
+		char_vecs  = convert_chars_to_vec(char_list, input_chars)
+		idx_matrix = convert_chars_to_idx(char_list, output_chars).T
 
 		#Forward pass through dropout layer of Wxh, Whh, b1
 		hidden_states, forward_cache = lstm_seq_forward(char_vecs, h0, Wxh, Whh, b1, mode)		#Dimensions (N, T, H)
@@ -108,10 +106,13 @@ class LSTM_Network(object):
 		char_indices = []
 		X = np.zeros_like(input_vec)
 		char_indices.append(np.argmax(input_vec))
-
+		seq_mode = {}
+		seq_mode['pass'] = 'val'
 		#Main Loop
 		for i in xrange(itr):
-			h, c, _ = lstm_step_forward(input_vec, h, c, Wxh, Whh, b1)
+			h, c, _ = lstm_step_forward(input_vec, h, c, Wxh, Whh, b1, seq_mode)
+			h *= 0.5
+			c *= 0.05
 			scores, _ = forward_pass(h, Why, b2)
 			probs = softmax(scores, 1.0)
 			index = np.random.choice(range(char_list_size),p=probs.ravel())

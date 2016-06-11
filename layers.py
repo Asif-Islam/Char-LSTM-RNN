@@ -142,8 +142,8 @@ def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b, mode):
   	"""
   	if (mode['pass'] == 'train'):
   		zh, zc = mode['zh'], mode['zc']
-  		h_mask = (np.random.rand(*h_prev.shape) < zh) / zh
-  		c_mask = (np.random.rand(*c_prev.shape) < zc) / zc
+  		h_mask = (np.random.rand(*h_prev.shape) < zh) 
+  		c_mask = (np.random.rand(*c_prev.shape) < zc) 
 
   		c_next = (f * c_prev) + (i * g)
   		h_next = h_mask * h_prev + (1 - h_mask) * o * np.tanh(c_next)
@@ -344,7 +344,7 @@ def softmax(X, temp):
 		probs - Output probabilities for each letter; dimensions (N, D)
 	"""
 
-	probs = np.exp((X - np.max(X, axis=1, keepdims=True))/temp)
+	probs = np.exp((X - np.max(X, axis=1, keepdims=True))/ temp)
   	probs /= np.sum(probs, axis=1, keepdims=True)
   	return probs
 
@@ -376,9 +376,6 @@ def lstm_softmax_loss(X, y, temp=1.0):
 	probs = softmax(flat_X, temp)
 
 	log_probs = np.log(probs[np.arange(N*T), flat_y])
-	print '--------------------------FLAT_y--------------------------'
-	print probs
-	print '---------------------------------------------------------'
 	loss = -np.sum(log_probs) / N
 
 	#Determing grad Loss wrt input scores
