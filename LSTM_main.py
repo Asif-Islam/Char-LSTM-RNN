@@ -39,6 +39,10 @@ solver = Solver(LSTM, train_data, optim_config)
 
 for k, v in LSTM.params.iteritems():
 	print k, v.shape
-solver.train(char_list, 'train')
+mode = {}
+mode['pass'] = 'train'
+mode['zh'] = 0.5
+mode['zc'] = 0.05
+solver.train(char_list, mode)
 
 

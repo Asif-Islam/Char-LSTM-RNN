@@ -43,7 +43,7 @@ class Solver(object):
       			self.optim_configs[p] = d 
 
 	
-	def step(self, chars, char_list, temp=1.0):
+	def step(self, chars, char_list, mode, temp=1.0):
 		"""
 		Inputs:
 			chars - The list batch of characters that we are forward and backward propagating over; dimensions
@@ -51,7 +51,7 @@ class Solver(object):
 			temp - The softmax temperature scale, default to 1.0
 
 		"""
-		loss, grads, hprev = self.model.loss(chars, char_list, self.model.current_hidden_state, temp)
+		loss, grads, hprev = self.model.loss(chars, char_list, self.model.current_hidden_state, mode, temp)
 		self.model.current_hidden_state = hprev
 		self.past_losses.append(loss)
 
@@ -88,7 +88,7 @@ class Solver(object):
 		text_file.close()
 
 
-	def train(self, char_list, mode='train'):	#TO DO: ASSIGN MODEL.CURENT_HIDDEN_STATE
+	def train(self, char_list, mode):
 
 		data = self.data_train
 
@@ -116,17 +116,17 @@ class Solver(object):
 				#input_train.append(data[-1])
 
 			
-			self.step(input_train, char_list)
+			self.step(input_train, char_list, mode)
 			p += seq_length
 			n += 1
 			#TO DO: EXTRACT THIS SAMPLE CODE BLOCK INTO A FUNCTION
-			if (n % 1000 == 0 and mode == 'train'):
+			if (n % 1000 == 0 and mode['pass'] == 'train'):
 				self.sample_training(char_list, n)
 				for k, v in self.model.params.iteritems():
 					np.savetxt(k + '.csv', v, delimiter=',')
 
 			if (final_loop == True):
-				if (mode == 'train'):
+				if (mode['pass'] == 'train'):
 					self.sample_training(char_list, n)
 					for k, v in self.model.params.iteritems():
 						np.savetxt(k + '.csv', v, delimiter=',')

@@ -51,7 +51,11 @@ def cross_validate(data, char_dim, hidden_dim, seq_length, dtype, char_list):
 		optim_config = {}
 		optim_config['learning_rate'] = lr
 		solver = Solver(model, batch_data, optim_config)
-		solver.train(char_list, 'val')
+		mode = {}
+		mode['pass'] = 'train'
+		mode['zh'] = 0.5	#THIS WILL HAVE TO BE CROSS-VALIDATED
+		mode['zc'] = 0.05
+		solver.train(char_list, mode)
 
 		#Creates indices
 		val_indices = []
@@ -74,7 +78,7 @@ def cross_validate(data, char_dim, hidden_dim, seq_length, dtype, char_list):
 			input_vec = val_char_vecs[0,i,:].reshape(1, len(char_list))
 			h, c, _ = lstm_step_forward(input_vec, h, c, Wxh, Whh, b1)
 			scores, _ = forward_pass(h, Why, b2)
-			probs = softmax(scores, 0.9)
+			probs = softmax(scores, 1.0)
 			index = np.random.choice(range(len(char_list)),p=probs.ravel())
 			val_indices.append(index)
 

@@ -102,7 +102,7 @@ def temporal_backward_pass(dout, cache):
 
 
 
-def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b):
+def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b, mode):
 	"""
 	Inputs:
 		X - Input data; dimension: (N, D)
@@ -111,6 +111,10 @@ def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b):
 		Wxh - Weight matrix mapping input layer to hidden layer; dimensions (D, 4H)
 		Whh - Weight matrix mapping hidden-to-hidden between timsteps; dimensions (H, 4H)
 		b - Biases; dimensions (4H,)
+		mode - Dictionary containing whether train or test
+			pass - train or test
+			zh - zoneout probability mask for h (only test)
+			zc - zoneout probability mask for c (only test)
 	Outputs:
 		h_next - Next hidden state; dimension (N, H)
 		c_next - Next cell state; dimension (N, H)
@@ -132,19 +136,33 @@ def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b):
   	o = sigmoid(a[:,2*H:3*H])
   	g = np.tanh(a[:, 3*H:4*H])
 
-  	#Tabulate the next hidden and cell state
-  	c_next = (f * c_prev) + (i * g)
-  	h_next = o * np.tanh(c_next)
+  	"""
+  	Implementation of Zoneout: Regularization Technique recently suggested:
+  	https://arxiv.org/pdf/1606.01305v1.pdf (Paper published June 7th, 2016)
+  	"""
+  	if (mode['pass'] == 'train'):
+  		zh, zc = mode['zh'], mode['zc']
+  		h_mask = (np.random.rand(*h_prev.shape) < zh) / zh
+  		c_mask = (np.random.rand(*c_prev.shape) < zc) / zc
+
+  		c_next = (f * c_prev) + (i * g)
+  		h_next = h_mask * h_prev + (1 - h_mask) * o * np.tanh(c_next)
+  		c_next = c_mask * c_prev + (1 - c_mask) * c_next
+  		cache['h_mask'], cache['c_mask'] = h_mask, c_mask
+  	else:
+  		c_next = (f * c_prev) + (i * g)
+  		h_next = o * np.tanh(c_next)
 
   	#Store our relevant values for the backward pass
   	cache['i'], cache['f'], cache['o'], cache['g'] = i, f, o, g
   	cache['X'], cache['Wxh'], cache['Whh'], cache['b'] = X, Wxh, Whh, b
   	cache['h_prev'], cache['c_prev'], cache['h_next'], cache['c_next'] = h_prev, c_prev, h_next, c_next
 
+
   	return h_next, c_next, cache
 
 
-def lstm_step_backward(dh_next, dc_next, cache):
+def lstm_step_backward(dh_next, dc_next, cache, mode):
 	"""
 	Inputs:
 		dh_next - Upstream gradients of next hidden state; dimension (N, H)
@@ -176,12 +194,23 @@ def lstm_step_backward(dh_next, dc_next, cache):
   	db = np.zeros_like(b)
 
   	#Tabulate gradients via Computational Graph
-  	do = np.tanh(c_next) * dh_next
-  	dc_next = dc_next + (dh_next * o) * (1 - np.tanh(c_next) * np.tanh(c_next))
-  	dc_prev = dc_next * f
-  	df = dc_next * c_prev
-  	di = dc_next * g
-  	dg = dc_next * i
+
+  	#Includes Zoneout Backprop
+  	if (mode['pass'] == "train"):
+  		h_mask, c_mask = cache['h_mask'], cache['c_mask']
+  		do = (1 - h_mask) * np.tanh(c_next) * dh_next
+  		dc_next = dc_next + (dh_next * o * (1 - h_mask)) * (1 - np.tanh(c_next) * np.tanh(c_next))
+  		dc_prev = dc_next * (c_mask + (1 - c_mask) * f)
+  		df = dc_next * c_prev * (1 - c_mask)
+  		di = dc_next * ( (1 - c_mask) * g)
+  		dg = dc_next * ( (1 - c_mask) * i)
+  	else:
+  		do = np.tanh(c_next) * dh_next
+  		dc_next = dc_next + (dh_next * o) * (1 - np.tanh(c_next) * np.tanh(c_next))
+  		dc_prev = dc_next * f
+  		df = dc_next * c_prev
+  		di = dc_next * g
+  		dg = dc_next * i
 
   	#Tabulate ifog gradients through their non-linearities (sigmoid/tanh)
   	ddi = di * i * (1 - i)
@@ -195,12 +224,17 @@ def lstm_step_backward(dh_next, dc_next, cache):
   	dX = np.dot(dact, Wxh.T)
   	dWh = np.dot(h_prev.T, dact)
   	dh_prev = np.dot(dact, Whh.T)
+
+  	if (mode == 'train'):
+  		h_mask = cache['h_mask']
+  		dh_prev += h_mask
+  	
   	db = np.sum(dact, axis=0)
 
  	return dX, dh_prev, dc_prev, dWx, dWh, db
 
 
-def lstm_seq_forward(X, h0, Wxh, Whh, b):
+def lstm_seq_forward(X, h0, Wxh, Whh, b, mode):
 	"""
 	Inputs:
 		X - Input data through time sequence; dimension (N, T, D)
@@ -208,6 +242,7 @@ def lstm_seq_forward(X, h0, Wxh, Whh, b):
 		Wxh - Weight matrix for input-to-hidden mapping; dimension (D, 4H)
 		Whh - Weight matrix for hidden-to-hidden mapping; dimension (H, 4H)
 		b - Biases of shape (4H,)
+		mode - Dictionary for zoneout in lstm_step_forward
 
 	Outputs:
 		h - Hidden states for all timesteps in the sequence; dimension (N, T, H)
@@ -227,17 +262,17 @@ def lstm_seq_forward(X, h0, Wxh, Whh, b):
 
 	#Iterate over all timestep forward steps
 	for i in xrange(T):
-		hs[i], cs[i], forward_caches[i] = lstm_step_forward(X[:,i,:], hs[i-1], cs[i-1], Wxh, Whh, b)
+		hs[i], cs[i], forward_caches[i] = lstm_step_forward(X[:,i,:], hs[i-1], cs[i-1], Wxh, Whh, b, mode)
 		h[:,i,:] = hs[i]
 
 	#Store our values into the cache
 	cache['X'], cache['h0'], cache['Wxh'], cache['Whh'], cache['b'] = X, h0, Wxh, Whh, b
 	cache['hs'], cache['cs'], cache['forward_caches'] = hs, cs, forward_caches
-
+	
 	return h, cache
 
 
-def lstm_seq_backward(dh, cache):
+def lstm_seq_backward(dh, cache, mode):
 	"""
 	Inputs:
 		dh - Upstream gradients of hidden states; dimensions (N, T, H)
@@ -248,7 +283,6 @@ def lstm_seq_backward(dh, cache):
 		dWxh - Gradient of input-hidden weight matrix; dimensions (D, 4H)
 		dWhh - Gradient of hidden-hidden weight matrix; dimensions (H, 4H)
 		db - Gradient of biases; dimensions (4H,)
-	pass
 	"""
 
 	#Unpack values from our cache
@@ -264,9 +298,10 @@ def lstm_seq_backward(dh, cache):
 	db   = np.zeros_like(b)
 	N, T, D = X.shape
 
-	#Main Loop
+	#Main LoopF
 	for i in reversed(xrange(T)):
-		dX[:,i,:], dh0, dc, dWxh_b, dWhh_b, db_b = lstm_step_backward(dh[:,i,:] + dh0, dc, forward_caches[i])
+		forward_caches[i]
+		dX[:,i,:], dh0, dc, dWxh_b, dWhh_b, db_b = lstm_step_backward(dh[:,i,:] + dh0, dc, forward_caches[i], mode)
 		dWxh += dWxh_b
 		dWhh += dWhh_b
 		db   += db_b
@@ -308,13 +343,10 @@ def softmax(X, temp):
 	Outputs:
 		probs - Output probabilities for each letter; dimensions (N, D)
 	"""
-	
-	X -= np.max(X)
-	X /= temp
-	X_exp = np.exp(X)
-	score_sum = np.sum(X_exp, axis=1, keepdims=True)
-	probs = X_exp / score_sum
-	return probs
+
+	probs = np.exp((X - np.max(X, axis=1, keepdims=True))/temp)
+  	probs /= np.sum(probs, axis=1, keepdims=True)
+  	return probs
 
 
 
@@ -342,7 +374,11 @@ def lstm_softmax_loss(X, y, temp=1.0):
 	
 	#Calculating probability scores and computing loss
 	probs = softmax(flat_X, temp)
+
 	log_probs = np.log(probs[np.arange(N*T), flat_y])
+	print '--------------------------FLAT_y--------------------------'
+	print probs
+	print '---------------------------------------------------------'
 	loss = -np.sum(log_probs) / N
 
 	#Determing grad Loss wrt input scores

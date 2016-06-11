@@ -2,16 +2,28 @@ import music21 as m21
 import numpy as np
 import sys
 
+x = np.array([[1,2,3],[4,5,6]])
+print 1 - x
+def matchKey(ABCpass, next_note):
+	try:
+		if (_BmajorKey[next_note] != None):
+			ABCpass += _BmajorKey[next_note]
+			return ABCpass
+	except KeyError:
+		ABCpass += next_note
+		return ABCpass
+
 filename = "ValeHome"
 
 #Load the desired key
-"""
+
 if (len(sys.argv) != 3):
 	raise ValueError("Insufficient number of arguments")
 else:
 	target_tonic = sys.argv[1]
 	target_mode = sys.argv[2]
-"""
+
+
 #Load the song and determine the apparent key
 score = m21.converter.parse(filename + ".mid")
 key = score.analyze("key")
@@ -19,12 +31,20 @@ print key.tonic.name, key.mode
 
 #Load all the possible characters in order
 #C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B, C
-notes = ["=C,","^C,", "=D,", "_E,", "E,", "=F,", "^F,", "=G,", "_A,", "=A,", "_B,", "B,"
-		 "=C", "^C", "=D", "_E", "E", "=F", "^F", "=G", "_A", "=A", "_B", "B",
-		 "=c", "^c", "=d", "_e", "e", "=f", "^f", "=g", "_a", "=a", "_b", "b",
-		 "=c'", "^c'", "=d'", "_e'", "e'", "=f'", "^f'", "=g'", "_a'", "=a'", "_b'", "b'"]	
+notes_v1 = ["=C,","^C,", "=D,", "_E,", "=E,", "=F,", "^F,", "=G,", "_A,", "=A,", "_B,", "=B",
+		   "=C", "^C", "=D", "_E", "=E", "=F", "^F", "=G", "_A", "=A", "_B", "=B",
+		   "=c", "^c", "=d", "_e", "=e", "=f", "^f", "=g", "_a", "=a", "_b", "=b",
+		   "=c'", "^c'", "=d'", "_e'", "=e'", "=f'", "^f'", "=g'", "_a'", "=a'", "_b'", "=b'"]
+
+notes_v2 = ["=C,","_D,", "=D,", "^D,", "=E,", "=F,", "_G,", "=G,", "^G,", "=A,", "^A,", "=B,"
+		   "=C", "_D", "=D", "^D", "=E", "=F", "_G", "=G", "^G", "=A", "^A", "=B",
+		   "=c", "_d", "=d", "^d", "=e", "=f", "_g", "=g", "^g", "=a", "^a", "=b",
+		   "=c'", "_d'", "=d'", "^d'", "=e'", "=f'", "_g'", "=g'", "^g'", "=a'", "^a'", "=b'"]	
+
 
 letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'A', 'B', 'C', 'D', 'E', 'F', 'G']
+letter_ornaments = ["'", ',']
+print ''' ' '''
 accidentals = ['_', '=', '^']
 headers = ['X', 'M', 'Q']
 key_signatures = {}
@@ -82,15 +102,24 @@ _BmajorKey = {}
 GmajorKey = {}
 
 FmajorKey['^a'] = '_b'
+FmajorKey["^a'"] = "_b'"
 FmajorKey['^A'] = '_B'
+FmajorKey['^A,'] = '_B,'
 
 _BmajorKey['^a'] = '_b'
+_BmajorKey["^a'"] = "_b'"
 _BmajorKey['^A'] = '_B'
+FmajorKey['^A,'] = '_B,'
 _BmajorKey['^d'] = '_e'
+_BmajorKey["^d'"] = "_e'"
 _BmajorKey['^D'] = '_E'
+_BmajorKey['^D,'] = '_E,'
+
 
 GmajorKey['_g'] = '^f'
+GmajorKey["_g'"] = "^f'"
 GmajorKey['_G'] = '^F'
+GmajorKey['_G,'] = '^F,'	
 
 
 
@@ -199,6 +228,8 @@ while True:
 		else:
 			state['dyn'] = False
 			i += 1
+			if (pass2[i] == ' '):
+				i += 1
 			continue 
 
 	elif (state['dyn'] == True):
@@ -233,6 +264,75 @@ PASS 4 #
 ########
 TRANSPOSE STEP! First we determine the semitone distance and then do a step-down pass
 """
+song_key = key.tonic.name + key.mode
+print song_key
+desired_key = sys.argv[1] + sys.argv[2]
+print desired_key 
+base_distance = key_signatures[song_key]
+print base_distance
+
+key_signatures[desired_key] += -1*base_distance
+if (key_signatures[desired_key] > 6):
+	key_signatures[desired_key] = key_signatures[desired_key] - 12
+elif (key_signatures[desired_key] <= -6):
+	key_signatures[desired_key] = key_signatures[desired_key] + 12
+
+rel_distance = key_signatures[desired_key]
+print rel_distance
+
+#being forward pass
+
+i = 0
+index = 0
+note = ""
+pass4 = ""
+no_orn = False
+while True:
+	if (i >= len(pass3)):
+		break;
+
+	if (pass3[i] in accidentals):
+		note += pass3[i]
+		i +=1
+		if (i >= len(pass3)):
+			break
+		note += pass3[i]
+		i += 1
+		if (i >= len(pass3)):
+			break
+		if (pass3[i] in letter_ornaments):
+			note += pass3[i]
+			i += 1
+			no_orn = False
+		else:
+			no_orn = True
+		try:
+			index = notes_v1.index(note)
+			next_note = notes_v1[index + rel_distance]
+			pass4 = matchKey(pass4, next_note)
+
+
+		except ValueError:
+			index = notes_v2.index(note)
+			next_note = notes_v2[index + rel_distance]
+			pass4 = matchKey(pass4, next_note)
+			#Error Checking To make sure we don't get beyond the length of our array
+			#Shift notes according to the key signature
+
+		if (no_orn == True):
+			pass4 += pass3[i]
+			i += 1
+
+		note = ""
+		no_orn = False
+	else:
+		note = ""
+		no_orn = False
+		pass4 += pass3[i]
+		i += 1
+
+output = open("pass4.txt", "w")
+output.write(pass4)
 
 #Now recreate the score letter by transposed by X semitones
 #Remove all comments in the process

@@ -38,7 +38,7 @@ class LSTM_Network(object):
 			self.params[k] = v.astype(self.dtype)
 
 
-	def loss(self, chars, char_list, h0, temp=1.0, ):
+	def loss(self, chars, char_list, h0,  mode, temp=1.0):
 		"""
 		Inputs:
 			chars - collection of characters from training data;
@@ -46,6 +46,7 @@ class LSTM_Network(object):
 					alloting. This is because we will use the 1st to Tth for input and
 					2nd to T+1th letters as output
 			h0    - An initial hidden state; dimensions (N, H)
+			mode -  Dictionary for Zoneout mode 
 		Outputs:
 			loss - The scalar loss value of the neural net's classification
 			grads - Dictionary of gradients of Wxh, Whh, b1, Why and b2
@@ -76,11 +77,11 @@ class LSTM_Network(object):
 			idx_matrix[n,:]  = np.asarray(convert_chars_to_idx(char_list, output_chars)).T
 
 		#Forward pass through dropout layer of Wxh, Whh, b1
-		hidden_states, forward_cache = lstm_seq_forward(char_vecs, h0, Wxh, Whh, b1)		#Dimensions (N, T, H)
+		hidden_states, forward_cache = lstm_seq_forward(char_vecs, h0, Wxh, Whh, b1, mode)		#Dimensions (N, T, H)
 		scores, scores_cache = temporal_forward_pass(hidden_states, Why, b2)				#Dimensions (N, T, D)
 		loss, dout = lstm_softmax_loss(scores, idx_matrix, temp)
 		dscores, grads['Why'], grads['b2'] = temporal_backward_pass(dout, scores_cache)
-		dhidden_states, dh_init, grads['Wxh'], grads['Whh'], grads['b1'] = lstm_seq_backward(dscores, forward_cache)
+		dhidden_states, dh_init, grads['Wxh'], grads['Whh'], grads['b1'] = lstm_seq_backward(dscores, forward_cache, mode)
 		#Backprop through a dropout layer on Wxh, Whh, b1
 
 		hprev = hidden_states[:,-1,:].reshape(N, H)
@@ -112,7 +113,7 @@ class LSTM_Network(object):
 		for i in xrange(itr):
 			h, c, _ = lstm_step_forward(input_vec, h, c, Wxh, Whh, b1)
 			scores, _ = forward_pass(h, Why, b2)
-			probs = softmax(scores, 0.9)
+			probs = softmax(scores, 1.0)
 			index = np.random.choice(range(char_list_size),p=probs.ravel())
 			input_vec = np.zeros_like(input_vec)
 			input_vec[:,index] = 1
