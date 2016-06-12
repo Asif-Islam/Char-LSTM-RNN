@@ -19,7 +19,7 @@ class Solver(object):
 		self.model = model
 		self.data_train = train_data['train']	#This will be a list of lists, per song basis
 		self.optim_config = optim_config
-		self.epochs = model.seq_length				#Have to think about the implications of this
+		self.epochs = model.seq_length				
 		self.print_interval = model.seq_length
 
 		self.reset()
@@ -30,11 +30,7 @@ class Solver(object):
 		"""
 
 		self.epoch = 0
-		self.best_val_acc = 0
-		self.best_params = {}
 		self.past_losses = []
-		self.past_train_acc = []
-		self.past_val_acc = []
 
 		self.optim_configs = {}
 		for p in self.model.params:
@@ -46,11 +42,15 @@ class Solver(object):
 		"""
 		Inputs:
 			chars - The list batch of characters that we are forward and backward propagating over; dimensions
-			h0 - The initial state coming into the batch of character; dimensions (N, H)
+			char_list - list of all possible characters we can print
 			temp - The softmax temperature scale, default to 1.0
 
 		"""
-		loss, grads, hprev = self.model.loss(chars, char_list, self.model.current_hidden_state, mode, temp)
+		qxh, qhy = self.model.qxh, self.model.qhy
+		masks = {}
+		masks['Wxh'] = (np.random.rand(*self.model.params['Wxh'].shape) < qxh)
+		masks['Why'] = (np.random.rand(*self.model.params['Why'].shape) < qhy)
+		loss, grads, hprev = self.model.loss(chars, char_list, self.model.current_hidden_state, masks, mode, temp)
 		self.model.current_hidden_state = hprev
 		self.past_losses.append(loss)
 
@@ -60,15 +60,6 @@ class Solver(object):
 			weights_updated, next_config = adam_update(weights, dweights, config)
 			self.model.params[param] = weights_updated
 			self.optim_configs[param] = next_config 
-
-	def check_accuracy(self):
-		
-		"""
-		Inputs:
-			
-		Outputs:
-
-		"""
 
 
 	def sample_training(self,char_list, n):
@@ -98,7 +89,7 @@ class Solver(object):
 		print 'Starting Train! the data length is ' + str(train_length)
 		epoch = 0
 		for i in range(0, num_train, self.model.batch_size):
-			
+
 			n,p, final_loop = 0, 0 , False
 			self.model.current_hidden_state = np.zeros_like(self.model.current_hidden_state)
 
@@ -129,43 +120,5 @@ class Solver(object):
 			self.sample_training(char_list, n)
 			for k, v in self.model.params.iteritems():
 				np.savetxt(k + '.csv', v, delimiter=',')
-
-	"""	n, p, final_loop = 0, 0, False
-					self.model.current_hidden_state = np.zeros_like(self.model.current_hidden_state)
-			
-			
-			
-			
-					while True:
-						print 'Iteration Number: ' + str(n)
-						if p + seq_length + 1 >= train_length:
-							final_loop = True
-						
-						if (final_loop == False):
-							input_train = data[p:p+seq_length]
-							output_train = data[p+1:p+seq_length+1]
-							input_train += output_train[-1]
-						else:
-							input_train = data[p:-1]
-							input_train += data[-1]
-							#input_train.append(data[-1])
-			
-						
-						self.step(input_train, char_list, mode)
-						p += seq_length
-						n += 1
-						#TO DO: EXTRACT THIS SAMPLE CODE BLOCK INTO A FUNCTION
-						if (n % 1000 == 0 and mode['pass'] == 'train'):
-							self.sample_training(char_list, n)
-							for k, v in self.model.params.iteritems():
-								np.savetxt(k + '.csv', v, delimiter=',')
-			
-						if (final_loop == True):
-							if (mode['pass'] == 'train'):
-								self.sample_training(char_list, n)
-								for k, v in self.model.params.iteritems():
-									np.savetxt(k + '.csv', v, delimiter=',')
-							break
-			"""
 
 

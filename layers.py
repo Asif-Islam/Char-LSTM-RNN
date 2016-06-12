@@ -78,11 +78,14 @@ def temporal_forward_pass(X, W, b):
 
 	return out, cache
 
-def temporal_backward_pass(dout, cache):
+def temporal_backward_pass(dout, cache, mask, qhy):
 	"""
 	Inputs:
 			dout -Upstream gradient: dimensions (N, T, M)
 			cache - Stored values from forward pass
+			mask - Dropout mask associated with the hidden-to-output weight;
+				   dimensions (D, M)
+			qhy - Dropout probability for hidden-to-output weight;
 
 	Outputs:
 			dX - gradient with respect to input X; dimensions (N, T, D)
@@ -96,13 +99,15 @@ def temporal_backward_pass(dout, cache):
 
 	dX = dout.reshape(N * T, M).dot(W.T).reshape(N, T, D)
 	dW = dout.reshape(N * T, M).T.dot(X.reshape(N * T, D)).T
+	dW[mask == 0] = 0
+	dW /= qhy
 	db = np.sum(dout, axis =(0,1))
 
 	return dX, dW, db
 
 
 
-def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b, mode):
+def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b):
 	"""
 	Inputs:
 		X - Input data; dimension: (N, D)
@@ -111,10 +116,7 @@ def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b, mode):
 		Wxh - Weight matrix mapping input layer to hidden layer; dimensions (D, 4H)
 		Whh - Weight matrix mapping hidden-to-hidden between timsteps; dimensions (H, 4H)
 		b - Biases; dimensions (4H,)
-		mode - Dictionary containing whether train or test
-			pass - train or test
-			zh - zoneout probability mask for h (only test)
-			zc - zoneout probability mask for c (only test)
+
 	Outputs:
 		h_next - Next hidden state; dimension (N, H)
 		c_next - Next cell state; dimension (N, H)
@@ -136,22 +138,8 @@ def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b, mode):
   	o = sigmoid(a[:,2*H:3*H])
   	g = np.tanh(a[:, 3*H:4*H])
 
-  	"""
-  	Implementation of Zoneout: Regularization Technique recently suggested:
-  	https://arxiv.org/pdf/1606.01305v1.pdf (Paper published June 7th, 2016)
-  	"""
-  	if (mode['pass'] == 'train'):
-  		zh, zc = mode['zh'], mode['zc']
-  		h_mask = (np.random.rand(*h_prev.shape) < zh) 
-  		c_mask = (np.random.rand(*c_prev.shape) < zc) 
-
-  		c_next = (f * c_prev) + (i * g)
-  		h_next = h_mask * h_prev + (1 - h_mask) * o * np.tanh(c_next)
-  		c_next = c_mask * c_prev + (1 - c_mask) * c_next
-  		cache['h_mask'], cache['c_mask'] = h_mask, c_mask
-  	else:
-  		c_next = (f * c_prev) + (i * g)
-  		h_next = o * np.tanh(c_next)
+  	c_next = (f * c_prev) + (i * g)
+  	h_next = o * np.tanh(c_next)
 
   	#Store our relevant values for the backward pass
   	cache['i'], cache['f'], cache['o'], cache['g'] = i, f, o, g
@@ -162,7 +150,7 @@ def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b, mode):
   	return h_next, c_next, cache
 
 
-def lstm_step_backward(dh_next, dc_next, cache, mode):
+def lstm_step_backward(dh_next, dc_next, cache):
 	"""
 	Inputs:
 		dh_next - Upstream gradients of next hidden state; dimension (N, H)
@@ -194,23 +182,12 @@ def lstm_step_backward(dh_next, dc_next, cache, mode):
   	db = np.zeros_like(b)
 
   	#Tabulate gradients via Computational Graph
-
-  	#Includes Zoneout Backprop
-  	if (mode['pass'] == "train"):
-  		h_mask, c_mask = cache['h_mask'], cache['c_mask']
-  		do = (1 - h_mask) * np.tanh(c_next) * dh_next
-  		dc_next = dc_next + (dh_next * o * (1 - h_mask)) * (1 - np.tanh(c_next) * np.tanh(c_next))
-  		dc_prev = dc_next * (c_mask + (1 - c_mask) * f)
-  		df = dc_next * c_prev * (1 - c_mask)
-  		di = dc_next * ( (1 - c_mask) * g)
-  		dg = dc_next * ( (1 - c_mask) * i)
-  	else:
-  		do = np.tanh(c_next) * dh_next
-  		dc_next = dc_next + (dh_next * o) * (1 - np.tanh(c_next) * np.tanh(c_next))
-  		dc_prev = dc_next * f
-  		df = dc_next * c_prev
-  		di = dc_next * g
-  		dg = dc_next * i
+  	do = np.tanh(c_next) * dh_next
+  	dc_next = dc_next + (dh_next * o) * (1 - np.tanh(c_next) * np.tanh(c_next))
+  	dc_prev = dc_next * f
+  	df = dc_next * c_prev
+  	di = dc_next * g
+  	dg = dc_next * i
 
   	#Tabulate ifog gradients through their non-linearities (sigmoid/tanh)
   	ddi = di * i * (1 - i)
@@ -224,17 +201,13 @@ def lstm_step_backward(dh_next, dc_next, cache, mode):
   	dX = np.dot(dact, Wxh.T)
   	dWh = np.dot(h_prev.T, dact)
   	dh_prev = np.dot(dact, Whh.T)
-
-  	if (mode == 'train'):
-  		h_mask = cache['h_mask']
-  		dh_prev += h_mask
   	
   	db = np.sum(dact, axis=0)
 
  	return dX, dh_prev, dc_prev, dWx, dWh, db
 
 
-def lstm_seq_forward(X, h0, Wxh, Whh, b, mode):
+def lstm_seq_forward(X, h0, Wxh, Whh, b):
 	"""
 	Inputs:
 		X - Input data through time sequence; dimension (N, T, D)
@@ -242,7 +215,6 @@ def lstm_seq_forward(X, h0, Wxh, Whh, b, mode):
 		Wxh - Weight matrix for input-to-hidden mapping; dimension (D, 4H)
 		Whh - Weight matrix for hidden-to-hidden mapping; dimension (H, 4H)
 		b - Biases of shape (4H,)
-		mode - Dictionary for zoneout in lstm_step_forward
 
 	Outputs:
 		h - Hidden states for all timesteps in the sequence; dimension (N, T, H)
@@ -262,7 +234,7 @@ def lstm_seq_forward(X, h0, Wxh, Whh, b, mode):
 
 	#Iterate over all timestep forward steps
 	for i in xrange(T):
-		hs[i], cs[i], forward_caches[i] = lstm_step_forward(X[:,i,:], hs[i-1], cs[i-1], Wxh, Whh, b, mode)
+		hs[i], cs[i], forward_caches[i] = lstm_step_forward(X[:,i,:], hs[i-1], cs[i-1], Wxh, Whh, b)
 		h[:,i,:] = hs[i]
 
 	#Store our values into the cache
@@ -272,11 +244,13 @@ def lstm_seq_forward(X, h0, Wxh, Whh, b, mode):
 	return h, cache
 
 
-def lstm_seq_backward(dh, cache, mode):
+def lstm_seq_backward(dh, cache, mask, qxh):
 	"""
 	Inputs:
 		dh - Upstream gradients of hidden states; dimensions (N, T, H)
 		cache - Values saved during forward pass
+		mask - Dropout mash for input to hidden weight matrix; dimensions (D, 4H)
+		qxh - Dropout probability for input to hidden weight matrix
 	Output:
 		dX - Gradient of input data; dimensions (N, T, D)
 		dh0 - Gradient of first hidden state; dimensions (N, H)
@@ -298,10 +272,12 @@ def lstm_seq_backward(dh, cache, mode):
 	db   = np.zeros_like(b)
 	N, T, D = X.shape
 
-	#Main LoopF
+	#Main Loop
 	for i in reversed(xrange(T)):
 		forward_caches[i]
-		dX[:,i,:], dh0, dc, dWxh_b, dWhh_b, db_b = lstm_step_backward(dh[:,i,:] + dh0, dc, forward_caches[i], mode)
+		dX[:,i,:], dh0, dc, dWxh_b, dWhh_b, db_b = lstm_step_backward(dh[:,i,:] + dh0, dc, forward_caches[i])
+		dWxh_b[mask == 0 ] = 0
+		dWxh_b /= qxh
 		dWxh += dWxh_b
 		dWhh += dWhh_b
 		db   += db_b
@@ -350,12 +326,14 @@ def softmax(X, temp):
 
 
 
-def lstm_softmax_loss(X, y, temp=1.0):
+def lstm_softmax_loss(X, y, null_mask, temp=1.0):
 	"""
 	Inputs:
 		X - Input scores through forward passes; dimensions (N, T, V)
 		y - Ground truth labels for predicted next letter Each element is 
 		    between 0 (inclusive) to V (exlcusive); dimensions (N, T)
+		null_mask - boolean mask representing which elements should contribute to the loss and backprop;
+					dimensions (N, T)
 		temp - Scaling temperature applied to calculated probabilities
 
 
@@ -370,18 +348,19 @@ def lstm_softmax_loss(X, y, temp=1.0):
 	N, T, V = X.shape
 	flat_X = X.reshape(N * T, V)
 	flat_y = [int(idx) for idx in y.reshape(N * T)]
-	
+	mask_flat = null_mask.reshape(N * T)
 	
 	#Calculating probability scores and computing loss
 	probs = softmax(flat_X, temp)
 
-	log_probs = np.log(probs[np.arange(N*T), flat_y])
+	log_probs = mask_flat * np.log(probs[np.arange(N*T), flat_y])
 	loss = -np.sum(log_probs) / N
 
 	#Determing grad Loss wrt input scores
 	flat_ds = probs.copy()
 	flat_ds[np.arange(N*T), flat_y] -= 1
 	flat_ds /= N
+	flat_ds *= mask_flat[:, None]
 	ds = flat_ds.reshape(N, T, V)
 
 	return loss, ds
