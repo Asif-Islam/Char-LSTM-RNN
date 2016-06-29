@@ -42,7 +42,7 @@ class LSTM_Network(object):
 			self.params[k] = v.astype(self.dtype)
 
 
-	def loss(self, chars, char_list, h0, masks, temp=1.0):
+	def loss(self, chars, char_list, h0, masks, qxh, qhy, temp=1.0):
 		"""
 		Inputs:
 			chars - Numpy Array of characters to train over; dimensions (N, T)
@@ -73,23 +73,29 @@ class LSTM_Network(object):
 
 		Wxh_mask = masks['Wxh']
 		Why_mask = masks['Why']
-		Wxh = Wxh * Wxh_mask
-		Why = Why * Why_mask
+
+		if qxh != 0:
+			Wxh = Wxh * Wxh_mask
+		
+		if qhy != 0:
+			Why = Why * Why_mask
 
 		#Split our chars into input and output of equal size now
 		input_chars = chars[:,:-1]
 		output_chars = chars[:,1:]
-		null_mask = np.invert(input_chars == '@')	#@ = our null token for variable length sequences
+		#null_mask = output_chars != '@'	#@ = our null token for variable length sequences
 		char_vecs  = convert_chars_to_vec(char_list, input_chars)
 		idx_matrix = convert_chars_to_idx(char_list, output_chars).T
+		null_mask = idx_matrix != 40
+		expected_char_vecs = convert_chars_to_vec(char_list, output_chars)
 
 		#Forward pass through dropout layer of Wxh, Whh, b1
 		hidden_states, forward_cache = lstm_seq_forward(char_vecs, h0, Wxh, Whh, b1)	#Dimensions (N, T, H)
 		scores, scores_cache = temporal_forward_pass(hidden_states, Why, b2)				#Dimensions (N, T, D)
 		loss, dout = lstm_softmax_loss(scores, idx_matrix, null_mask, temp)
 		dscores, grads['Why'], grads['b2'] = temporal_backward_pass(dout, scores_cache, Why_mask, self.qhy)
+		
 		dhidden_states, dh_init, grads['Wxh'], grads['Whh'], grads['b1'] = lstm_seq_backward(dscores, forward_cache, Wxh_mask, self.qxh)
-
 		hprev = hidden_states[:,-1,:].reshape(N, H)
 
 		return loss, grads, hprev

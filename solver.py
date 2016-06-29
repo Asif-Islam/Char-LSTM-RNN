@@ -17,7 +17,7 @@ class Solver(object):
 	def __init__(self, model, train_data, optim_config=None):
 
 		self.model = model
-		self.data_train = train_data['train']	#This will be a list of lists, per song basis
+		self.data_train = train_data
 		self.optim_config = optim_config
 		self.epochs = model.seq_length				
 		self.print_interval = model.seq_length
@@ -50,7 +50,7 @@ class Solver(object):
 		masks = {}
 		masks['Wxh'] = (np.random.rand(*self.model.params['Wxh'].shape) < qxh)
 		masks['Why'] = (np.random.rand(*self.model.params['Why'].shape) < qhy)
-		loss, grads, hprev = self.model.loss(chars, char_list, self.model.current_hidden_state, masks, mode, temp)
+		loss, grads, hprev = self.model.loss(chars, char_list, self.model.current_hidden_state, masks, self.model.qxh, self.model.qhy, temp)
 		self.model.current_hidden_state = hprev
 		self.past_losses.append(loss)
 
@@ -78,7 +78,7 @@ class Solver(object):
 		text_file.close()
 
 
-	def train(self, char_list, mode):
+	def train(self, char_list, mode=None):
 
 		data = self.data_train
 
@@ -101,9 +101,9 @@ class Solver(object):
 					final_loop = True
 
 				if (final_loop == False):
-					input_train = data[i:i+self.model.batch_size, p:p+seq_length+1]
+					input_train = data[i:i+self.model.batch_size, p:p+seq_length]				
 				else:
-					input_train = data[epoch*self.model.batch_size:i, p:]
+					input_train = data[i:i+self.model.batch_size, p:]	
 
 				self.step(input_train, char_list, mode)
 				p += seq_length
@@ -117,8 +117,8 @@ class Solver(object):
 					break
 
 			epoch +=1
-			self.sample_training(char_list, n)
+			self.sample_training(char_list, i)
 			for k, v in self.model.params.iteritems():
-				np.savetxt(k + '.csv', v, delimiter=',')
+				np.savetxt(k + str(epoch) + '.csv', v, delimiter=',')
 
 

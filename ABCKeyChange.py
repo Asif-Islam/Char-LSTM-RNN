@@ -2,8 +2,6 @@ import music21 as m21
 import numpy as np
 import sys
 
-x = np.array([[1,2,3],[4,5,6]])
-print 1 - x
 def matchKey(ABCpass, next_note):
 	try:
 		if (_BmajorKey[next_note] != None):
@@ -16,12 +14,8 @@ def matchKey(ABCpass, next_note):
 filename = "ValeHome"
 
 #Load the desired key
-
-if (len(sys.argv) != 3):
-	raise ValueError("Insufficient number of arguments")
-else:
-	target_tonic = sys.argv[1]
-	target_mode = sys.argv[2]
+	#target_tonic = sys.argv[1]
+	#target_mode = sys.argv[2]
 
 
 #Load the song and determine the apparent key
@@ -123,216 +117,213 @@ GmajorKey['_G,'] = '^F,'
 
 
 
-#Open The file and store it in a string
-abc_score = open(filename + ".abc", "r").read()
+
 
 
 #First go through the entire string and append sharps/flats/naturals to 
 #unsigned notes that follow a note with an accidental; Ignore Comments while we're ati t
 
+def filterABC(path, mode, key=None):
 
-output = open("pass0.txt", "w")
-output.write(abc_score)
+	#Open The file and store it in a string
+	abc_score = open(path, "r").read()
+	"""
+	########
+	PASS 1 #
+	########
 
-"""
-########
-PASS 1 #
-########
+	Remove all comments, T and K fields
+	"""
 
-Remove all comments, T and K fields
-"""
+	i = 0; #String iterator
+	pass1 = ""
+	while True:
+		if (i >= len(abc_score)):
+			break;
 
-i = 0; #String iterator
-pass1 = ""
-while True:
-	if (i >= len(abc_score)):
-		break;
-
-	if (abc_score[i] == '%' or abc_score[i] == 'T' or abc_score[i] == 'K'):
-		while True:
-			i +=1
-			if(abc_score[i] == '\n'):
-				break;	
-	else:
-		pass1 = pass1 + abc_score[i]	
-	
-	i += 1
-
-output = open("pass1.txt", "w")
-output.write(pass1)
-
-"""
-########
-PASS 2 #
-########
-
-Remove all extra whitespace
-"""
-
-i = 0
-pass2 = ""
-while True:
-	if (i >= len(pass1)):
-		break;
-
-	if (pass1[i] == '\n'):
+		if (abc_score[i] == '%' or abc_score[i] == 'T' or abc_score[i] == 'K' or abc_score[i] == 'X'):
+			while True:
+				i +=1
+				if(abc_score[i] == '\n'):
+					break;	
+		else:
+			pass1 = pass1 + abc_score[i]	
+		
 		i += 1
+
+
+	"""
+	########
+	PASS 2 #
+	########
+
+	Remove all extra whitespace
+	"""
+
+	i = 0
+	pass2 = ""
+	while True:
 		if (i >= len(pass1)):
 			break;
-		else:
-			if (pass1[i] == '\n'):
-				pass2 = pass2 + '\n'
-				i += 1
-			elif (pass1[i] == 'X'):
-				pass2 = pass2 + pass1[i]
-				i +=1
+
+		if (pass1[i] == '\n'):
+			i += 1
+			if (i >= len(pass1)):
+				break;
 			else:
-				pass2 = pass2 + '\n' + pass1[i]
-				i += 1
-	else:
-		pass2 = pass2 + pass1[i]
-		i += 1
-output = open("pass2.txt", "w")
-output.write(pass2)
-
-"""
-########
-PASS 3 #
-########
-Add Accidentals to every note
-"""
-i = 0
-state = {}
-state['dyn'] = False
-pass3 = ""
-while True:
-	if (i >= len(pass2)):
-		break
-
-	if (pass2[i] in headers):
-		while True:
-			if (pass2[i] == '\n'):
-				break
-			pass3 = pass3 + pass2[i]
-			i += 1
-
-	if (pass2[i] == '|'):
-		state = {}
-		state['dyn'] = False
-
-	elif (pass2[i] == '+'):
-		if (state['dyn'] == False):
-			state['dyn'] = True
-			i += 1
-			continue 
+				if (pass1[i] == '\n'):
+					pass2 = pass2 + '\n'
+					i += 1
+				elif (pass1[i] == 'X'):
+					pass2 = pass2 + pass1[i]
+					i +=1
+				else:
+					pass2 = pass2 + '\n' + pass1[i]
+					i += 1
 		else:
+			pass2 = pass2 + pass1[i]
+			i += 1
+
+	"""
+	########
+	PASS 3 #
+	########
+	Add Accidentals to every note
+	"""
+	i = 0
+	state = {}
+	state['dyn'] = False
+	pass3 = ""
+	while True:
+		if (i >= len(pass2)):
+			break
+
+		if (pass2[i] in headers):
+			while True:
+				if (pass2[i] == '\n'):
+					break
+				pass3 = pass3 + pass2[i]
+				i += 1
+
+		if (pass2[i] == '|'):
+			state = {}
 			state['dyn'] = False
-			i += 1
-			if (pass2[i] == ' '):
+
+		elif (pass2[i] == '+'):
+			if (state['dyn'] == False):
+				state['dyn'] = True
 				i += 1
-			continue 
-
-	elif (state['dyn'] == True):
-		i += 1
-		continue
-
-	elif (pass2[i] in letters):	#TO DO!!! MAKE THE STATE OF THE NOTE EQUAL TO = !!!
-		if not state:
-			pass3 = pass3 + '='
-		else:
-			if (pass2[i] in state):
-				pass3 = pass3 + state[pass2[i]]
+				continue 
 			else:
+				state['dyn'] = False
+				i += 1
+				if (pass2[i] == ' '):
+					i += 1
+				continue 
+
+		elif (state['dyn'] == True):
+			i += 1
+			continue
+
+		elif (pass2[i] in letters):	#TO DO!!! MAKE THE STATE OF THE NOTE EQUAL TO = !!!
+			if not state:
 				pass3 = pass3 + '='
+			else:
+				if (pass2[i] in state):
+					pass3 = pass3 + state[pass2[i]]
+				else:
+					pass3 = pass3 + '='
 
-	elif (pass2[i] in accidentals):
-		state[pass2[i+1]] = pass2[i]
-		pass3 = pass3 + pass2[i] + pass2[i+1]
-		i += 2
+		elif (pass2[i] in accidentals):
+			state[pass2[i+1]] = pass2[i]
+			pass3 = pass3 + pass2[i] + pass2[i+1]
+			i += 2
 
 
 
-	pass3 = pass3 + pass2[i]
-	i += 1
-
-output = open("pass3.txt", "w")
-output.write(pass3)
-
-"""
-########
-PASS 4 #
-########
-TRANSPOSE STEP! First we determine the semitone distance and then do a step-down pass
-"""
-song_key = key.tonic.name + key.mode
-print song_key
-desired_key = sys.argv[1] + sys.argv[2]
-print desired_key 
-base_distance = key_signatures[song_key]
-print base_distance
-
-key_signatures[desired_key] += -1*base_distance
-if (key_signatures[desired_key] > 6):
-	key_signatures[desired_key] = key_signatures[desired_key] - 12
-elif (key_signatures[desired_key] <= -6):
-	key_signatures[desired_key] = key_signatures[desired_key] + 12
-
-rel_distance = key_signatures[desired_key]
-print rel_distance
-
-#being forward pass
-
-i = 0
-index = 0
-note = ""
-pass4 = ""
-no_orn = False
-while True:
-	if (i >= len(pass3)):
-		break;
-
-	if (pass3[i] in accidentals):
-		note += pass3[i]
-		i +=1
-		if (i >= len(pass3)):
-			break
-		note += pass3[i]
+		pass3 = pass3 + pass2[i]
 		i += 1
-		if (i >= len(pass3)):
-			break
-		if (pass3[i] in letter_ornaments):
-			note += pass3[i]
-			i += 1
-			no_orn = False
-		else:
-			no_orn = True
-		try:
-			index = notes_v1.index(note)
-			next_note = notes_v1[index + rel_distance]
-			pass4 = matchKey(pass4, next_note)
 
+	"""
+	########
+	PASS 4 #
+	########
+	TRANSPOSE STEP! First we determine the semitone distance and then do a step-down pass
+	"""
+	if (mode == True):
+		song_key = key.tonic.name + key.mode
+		print song_key
+		desired_key = sys.argv[1] + sys.argv[2]
+		print desired_key 
+		base_distance = key_signatures[song_key]
+		print base_distance
 
-		except ValueError:
-			index = notes_v2.index(note)
-			next_note = notes_v2[index + rel_distance]
-			pass4 = matchKey(pass4, next_note)
-			#Error Checking To make sure we don't get beyond the length of our array
-			#Shift notes according to the key signature
+		key_signatures[desired_key] += -1*base_distance
+		if (key_signatures[desired_key] > 6):
+			key_signatures[desired_key] = key_signatures[desired_key] - 12
+		elif (key_signatures[desired_key] <= -6):
+			key_signatures[desired_key] = key_signatures[desired_key] + 12
 
-		if (no_orn == True):
-			pass4 += pass3[i]
-			i += 1
+		rel_distance = key_signatures[desired_key]
+		print rel_distance
 
+		#being forward pass
+
+		i = 0
+		index = 0
 		note = ""
+		pass4 = ""
 		no_orn = False
+		while True:
+			if (i >= len(pass3)):
+				break;
+
+			if (pass3[i] in accidentals):
+				note += pass3[i]
+				i +=1
+				if (i >= len(pass3)):
+					break
+				note += pass3[i]
+				i += 1
+				if (i >= len(pass3)):
+					break
+				if (pass3[i] in letter_ornaments):
+					note += pass3[i]
+					i += 1
+					no_orn = False
+				else:
+					no_orn = True
+				try:
+					index = notes_v1.index(note)
+					next_note = notes_v1[index + rel_distance]
+					pass4 = matchKey(pass4, next_note)
+
+
+				except ValueError:
+					index = notes_v2.index(note)
+					next_note = notes_v2[index + rel_distance]
+					pass4 = matchKey(pass4, next_note)
+					#Error Checking To make sure we don't get beyond the length of our array
+					#Shift notes according to the key signature
+
+				if (no_orn == True):
+					pass4 += pass3[i]
+					i += 1
+
+				note = ""
+				no_orn = False
+			else:
+				note = ""
+				no_orn = False
+				pass4 += pass3[i]
+				i += 1
+
+		#output = open("pass4.txt", "w")
+		#output.write(pass4)
+
+		return pass4
+
 	else:
-		note = ""
-		no_orn = False
-		pass4 += pass3[i]
-		i += 1
-
-output = open("pass4.txt", "w")
-output.write(pass4)
-
-#Now recreate the score letter by transposed by X semitones
-#Remove all comments in the process
+		return pass3
+	#Now recreate the score letter by transposed by X semitones
+	#Remove all comments in the process

@@ -96,11 +96,12 @@ def temporal_backward_pass(dout, cache, mask, qhy):
 	X, W, b, out = cache
 	N, T, D = X.shape
 	M = b.shape[0]
-
 	dX = dout.reshape(N * T, M).dot(W.T).reshape(N, T, D)
 	dW = dout.reshape(N * T, M).T.dot(X.reshape(N * T, D)).T
-	dW[mask == 0] = 0
-	dW /= qhy
+
+	if qhy != 0:
+		dW[mask == 0] = 0
+
 	db = np.sum(dout, axis =(0,1))
 
 	return dX, dW, db
@@ -143,10 +144,8 @@ def lstm_step_forward(X, h_prev, c_prev, Wxh, Whh, b):
 
   	#Store our relevant values for the backward pass
   	cache['i'], cache['f'], cache['o'], cache['g'] = i, f, o, g
-  	cache['X'], cache['Wxh'], cache['Whh'], cache['b'] = X, Wxh, Whh, b
   	cache['h_prev'], cache['c_prev'], cache['h_next'], cache['c_next'] = h_prev, c_prev, h_next, c_next
-
-
+  	cache['X'], cache['Wxh'], cache['Whh'], cache['b'] = X, Wxh, Whh, b
   	return h_next, c_next, cache
 
 
@@ -203,7 +202,6 @@ def lstm_step_backward(dh_next, dc_next, cache):
   	dh_prev = np.dot(dact, Whh.T)
   	
   	db = np.sum(dact, axis=0)
-
  	return dX, dh_prev, dc_prev, dWx, dWh, db
 
 
@@ -240,7 +238,7 @@ def lstm_seq_forward(X, h0, Wxh, Whh, b):
 	#Store our values into the cache
 	cache['X'], cache['h0'], cache['Wxh'], cache['Whh'], cache['b'] = X, h0, Wxh, Whh, b
 	cache['hs'], cache['cs'], cache['forward_caches'] = hs, cs, forward_caches
-	
+
 	return h, cache
 
 
@@ -276,8 +274,10 @@ def lstm_seq_backward(dh, cache, mask, qxh):
 	for i in reversed(xrange(T)):
 		forward_caches[i]
 		dX[:,i,:], dh0, dc, dWxh_b, dWhh_b, db_b = lstm_step_backward(dh[:,i,:] + dh0, dc, forward_caches[i])
-		dWxh_b[mask == 0 ] = 0
-		dWxh_b /= qxh
+		
+		if qxh != 0:
+			dWxh_b[mask == 0 ] = 0
+
 		dWxh += dWxh_b
 		dWhh += dWhh_b
 		db   += db_b
@@ -362,6 +362,5 @@ def lstm_softmax_loss(X, y, null_mask, temp=1.0):
 	flat_ds /= N
 	flat_ds *= mask_flat[:, None]
 	ds = flat_ds.reshape(N, T, V)
-
 	return loss, ds
 
